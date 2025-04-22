@@ -279,10 +279,7 @@ body {
   }
   
   #diceResult {
-    font-size: 24px;
-    font-weight: bold;
-    min-width: 30px;
-    text-align: center;
+    width: 50px;
   }
   
   #turnIndicator {
