@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Ludo Lobby</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='styles/index.css') }}"
+    />
+    <style>
+      .lobby-container {
+        max-width: 500px;
+        margin: 0 auto;
+        padding: 20px;
+        text-align: center;
+      }
+      .player-list {
+        margin: 20px 0;
+        padding: 10px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+      }
+      .player-entry {
+        display: flex;
+        align-items: center;
+        padding: 8px;
+        margin: 5px 0;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 4px;
+      }
+      #ready-btn {
+        background: #4caf50;
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
+      }
+      #ready-btn:disabled {
+        background: #cccccc;
+        cursor: not-allowed;
+      }
+      #share-btn {
+        background: #2196f3;
+        color: white;
+        margin-left: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="menuContainer">
+      <div class="container my-auto">
+        <div class="row">
+          <div
+            class="col-sm-8 col-md-6 col-lg-5 col-xl-4 startMenu mx-auto text-center"
+          >
+            <h1 class="my-3"><b>LOBBY</b></h1>
+            <div id="player-list" class="player-list"></div>
+            <div id="lobby-status" class="my-3">Connecting...</div>
+            <div class="lobby-controls">
+              <button id="ready-btn" class="btn btn-light my-3">
+                <b>READY</b>
+              </button>
+              <button id="share-btn" class="btn btn-light my-3">
+                <b>COPY JOIN LINK</b>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Initialize Socket.IO connection
+      const socket = io();
+      const room_id = "{{ room_id }}";
+      const playerName = localStorage.getItem("playerName") || "Player";
+
+      console.log("Attempting to join lobby:", room_id);
+
+      // Immediately join lobby when page loads
+      socket.emit("join_lobby", {
+        room_id: room_id,
+        player_name: playerName,
+      });
+
+      // Handle player updates
+      socket.on("player_update", (data) => {
+        console.log("Player update received:", data);
+        const playerList = document.getElementById("player-list");
+        playerList.innerHTML = "";
+
+        data.players.forEach((player) => {
+          const playerElement = document.createElement("div");
+          playerElement.className = "player-entry";
+          playerElement.innerHTML = `
+                    <img src="/static/img/${player.color}-token.png" width="30">
+                    <span style="margin-left:10px">${player.name}</span>
+                    ${
+                      player.ready
+                        ? '<span style="margin-left:10px">✓ READY</span>'
+                        : ""
+                    }
+                `;
+          playerList.appendChild(playerElement);
+        });
+
+        document.getElementById(
+          "lobby-status"
+        ).textContent = `Players: ${data.players.length}/${data.max_players}`;
+
+        document.getElementById("ready-btn").disabled = data.all_ready;
+      });
+
+      // Ready button functionality
+      document
+        .getElementById("ready-btn")
+        .addEventListener("click", function () {
+          console.log("Ready button clicked");
+          socket.emit("ready");
+          this.disabled = true;
+          this.textContent = "READY ✓";
+        });
+
+      // Share button functionality
+      document
+        .getElementById("share-btn")
+        .addEventListener("click", function () {
+          const shareLink = `${window.location.origin}?join=${room_id}`;
+          navigator.clipboard.writeText(shareLink).then(() => {
+            alert(
+              "Join link copied to clipboard!\n\nShare this with other players:"
+            );
+          });
+        });
+
+      // Start game when all ready
+      socket.on("game_start", (data) => {
+        console.log("Game starting with players:", data.players);
+        window.location.href = `/game/${room_id}`;
+      });
+
+      // Error handling
+      socket.on("error", (data) => {
+        console.error("Socket error:", data);
+        alert(data.message);
+        if (
+          data.message.includes("not found") ||
+          data.message.includes("full")
+        ) {
+          window.location.href = "/";
+        }
+      });
+
+      // Handle connection issues
+      socket.on("disconnect", () => {
+        document.getElementById("lobby-status").textContent =
+          "Disconnected - attempting to reconnect...";
+      });
+
+      socket.on("reconnect", () => {
+        socket.emit("join_lobby", {
+          room_id: room_id,
+          player_name: playerName,
+        });
+      });
+    </script>
+  </body>
+</html>
